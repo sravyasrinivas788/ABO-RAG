@@ -1,9 +1,9 @@
 from pydantic import BaseModel
 
-from normalize_text import get_localized_single, get_localized_list
-from normalize_fields import get_value_only, get_categories
-from normalize_measurement import extract_dimensions, extract_weight
-from image_urls import extract_images
+from ingestion.normalize_text import get_localized_single, get_localized_list
+from ingestion.normalize_fields import get_value_only, get_categories
+from ingestion.normalize_measurement import extract_dimensions, extract_weight
+from ingestion.image_urls import extract_images
 
 
 class Product(BaseModel):

@@ -31,14 +31,23 @@ pip install -r requirements.txt
 Inspect the raw data:
 
 ```
-python ingestion\loader.py
+python -m ingestion.loader
 ```
 
 Build a normalized `Product` from a sample listing and run the built-in checks:
 
 ```
-python ingestion\product_schema.py
+python -m ingestion.product_schema
 ```
 
 Each module in `ingestion/` also runs as a standalone script when executed
-directly, for quick spot-checks against real listing data.
+this way (as `-m`, from the project root), for quick spot-checks against real
+listing data.
+
+## Running the API
+
+```
+uvicorn api.main:app --reload
+```
+
+Run this from the project root (not from inside `api/`).
