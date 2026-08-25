@@ -1,6 +1,6 @@
 import sys
 from pathlib import Path
-
+import numpy as np
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from embeddings.clip_model import get_model, get_processor
@@ -28,8 +28,14 @@ def embed_image_query(image)->list[float] | None:
     vector=vector/vector.norm()
     return vector.numpy().tolist()
 
+def combine_query_vectors(text_vector: list[float], image_vector: list[float], text_weight: float = 0.5) -> list[float]:
+    a = np.array(text_vector)
+    b = np.array(image_vector)
+    combined = text_weight * a + (1 - text_weight) * b
+    combined = combined / np.linalg.norm(combined)
+    return combined.tolist()
 
-def dense_search(query_vector:list[float], top_k:int=5):
+def dense_search(query_vector:list[float], top_k:int=10):
     client=get_client()
     results=client.query_points(
         collection_name=COLLECTION_NAME,
@@ -48,24 +54,28 @@ def dense_search(query_vector:list[float], top_k:int=5):
             }
         if len(seen_items) >= top_k:
             break
-    for item_id, product in seen_items.items():
-        chunk_results, _ = client.scroll(
-            collection_name=COLLECTION_NAME,
-            scroll_filter=Filter(must=[
-                FieldCondition(key="item_id", match=MatchValue(value=item_id)),
-                FieldCondition(key="modality", match=MatchValue(value="text")),
-            ]),
-            limit=20,
-        )
-        chunks_sorted = sorted(chunk_results, key=lambda c: c.payload["chunk_index"])
-        product["full_text"] = " | ".join(c.payload["text"] for c in chunks_sorted)
-
+    for item_id,product in seen_items.items():
+        product["full_text"]=fetch_full_text(item_id,client=client)
     return list(seen_items.values())
 
-
-    
-        
-
-        
-
-   
+def fetch_full_text(item_id:str,client=None)->str:
+    if client is None:
+        client=get_client()
+    chunk_results,_=client.scroll(
+        collection_name=COLLECTION_NAME,
+        scroll_filter=Filter(
+            must=[
+                FieldCondition(
+                    key="item_id",
+                    match=MatchValue(value=item_id)
+                ),
+                FieldCondition(
+                    key="modality",
+                    match=MatchValue(value="text")
+                )
+            ]
+        ),
+        limit=20
+    )
+    chunks_sorted=sorted(chunk_results, key=lambda p: p.payload.get("chunk_index",0))
+    return " ".join(p.payload.get("text","") for p in chunks_sorted)
