@@ -1,6 +1,6 @@
 from retrival.dense_search import dense_search,fetch_full_text,embed_text_query
 from retrival.bm25_search import bm25_search
-
+from retrival.semantic_search import semantic_search
 RRF_K=60
 
 def reciprocal_rank_fusion(dense_results:list[dict],bm25_results:list[dict],top_k: int=5)->list[dict]:
@@ -37,5 +37,7 @@ def hybrid_search_from_vector(query_vector:list[float],query_text:str,top_k:int=
     return reciprocal_rank_fusion(dense_results,bm25_results,top_k)
 
 def hybrid_search(query:str,top_k:int=5)->list[dict]:
-    query_vector=embed_text_query(query)
-    return hybrid_search_from_vector(query_vector,query,top_k)
+    semantic_results=semantic_search(query,top_K=top_k*2)
+    bm25_results=bm25_search(query,top_k=top_k*2) if query else []
+    return reciprocal_rank_fusion(semantic_results,bm25_results,top_k)
+   

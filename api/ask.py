@@ -8,7 +8,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from retrival.dense_search import embed_text_query,embed_image_query,dense_search,combine_query_vectors
 from retrival.llm_generate import generate_answer
-from retrival.hybrid_search import hybrid_search_from_vector
+from retrival.hybrid_search import hybrid_search_from_vector,hybrid_search
+
 router = APIRouter()
 
 @router.post("/ask")
@@ -25,8 +26,7 @@ async def ask_question(question:str=Form(None),image: UploadFile=None):
         query_vector=embed_image_query(image_pil)
         retrived=hybrid_search_from_vector(query_vector,query_text=None,top_k=5)
     else:
-        query_vector=embed_text_query(question)
-        retrived=hybrid_search_from_vector(query_vector,query_text=question,top_k=5)
+        retrived=hybrid_search(question,top_k=5)
     
     default_question = "The user uploaded an image and the products below were retrieved as visually similar matches. Describe these matching products."
     return generate_answer(question or default_question,retrived)

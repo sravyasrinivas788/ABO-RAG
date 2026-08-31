@@ -6,7 +6,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from embeddings.clip_model import get_model, get_processor
 import torch
 from vector_store.qdrant_store import get_client, COLLECTION_NAME
-from qdrant_client.models import Filter, FieldCondition, Range,MatchValue
+from qdrant_client.models import Filter, FieldCondition, Range,MatchValue 
 
 def embed_text_query(text:str)->list[float]:
     model=get_model()
@@ -40,6 +40,7 @@ def dense_search(query_vector:list[float], top_k:int=10):
     results=client.query_points(
         collection_name=COLLECTION_NAME,
         query=query_vector,
+        using="clip",
         limit=top_k*4,
     )
     seen_items = {}
