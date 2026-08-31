@@ -1,6 +1,10 @@
 from retrival.dense_search import dense_search,fetch_full_text,embed_text_query
 from retrival.bm25_search import bm25_search
 from retrival.semantic_search import semantic_search
+import logging
+logger=logging.getLogger("abo_rag_logger")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s")
+
 RRF_K=60
 
 def reciprocal_rank_fusion(dense_results:list[dict],bm25_results:list[dict],top_k: int=5)->list[dict]:
@@ -29,15 +33,24 @@ def reciprocal_rank_fusion(dense_results:list[dict],bm25_results:list[dict],top_
             "matched_via":",".join(sorted(matched)),
             "full_text":full_text
         })
+    logger.info(f"RRF results: {[r['item_id'] for r in results]}")
+    for r in results:
+        logger.info(f"  {r['item_id']}: score={r['score']:.4f}, matched_via={r['matched_via']}")
     return results
 
 def hybrid_search_from_vector(query_vector:list[float],query_text:str,top_k:int=5)->list[dict]:
+    logger.info(f"routing for hybrid search with query vector and text using CLIP: {query_text}")
     dense_results=dense_search(query_vector,top_k=top_k*2)
+    logger.info(f"Dense search results: {[r['item_id']+ ': ' + str(r['score']) for r in dense_results]}")
     bm25_results=bm25_search(query_text,top_k=top_k*2) if query_text else []
+    logger.info(f"BM25 search results: {[r['item_id'] + ': ' + str(r['score']) for r in bm25_results]}")
     return reciprocal_rank_fusion(dense_results,bm25_results,top_k)
 
 def hybrid_search(query:str,top_k:int=5)->list[dict]:
-    semantic_results=semantic_search(query,top_K=top_k*2)
+    logger.info(f"routing for semantic BGE search {query}")
+    semantic_results=semantic_search(query,top_k=top_k*2)
+    logger.info(f"Semantic search results: {[r['item_id']+ ': ' + str(r['score']) for r in semantic_results]}")
     bm25_results=bm25_search(query,top_k=top_k*2) if query else []
+    logger.info(f"BM25 search results: {[r['item_id'] + ': ' + str(r['score']) for r in bm25_results]}")
     return reciprocal_rank_fusion(semantic_results,bm25_results,top_k)
    

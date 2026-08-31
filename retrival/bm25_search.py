@@ -26,16 +26,16 @@ def bm25_search(query:str,top_k:int=10)->list[dict]:
         build_index()
     scores=_bm25.get_scores(query.lower().split())
     ranked_index=sorted(range(len(scores)),key=lambda i:scores[i],reverse=True)
-    seen_iteems={}
+    seen_items={}
     for idx in ranked_index:
         item_id=_records[idx]["item_id"]
-        if item_id not in seen_iteems:
-            seen_iteems[item_id]={
+        if item_id not in seen_items:
+            seen_items[item_id]={
                 "item_id":item_id,
                 "score":scores[idx],
                 "image_url":_records[idx]["image_url"],
-                "matched_via":"text",
+                "matched_via":"bm25",
             }
-        if len(seen_iteems)>=top_k:
+        if len(seen_items)>=top_k:
             break
-    return list(seen_iteems.values())
+    return list(seen_items.values())
