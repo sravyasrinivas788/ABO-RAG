@@ -4,6 +4,7 @@ from qdrant_client.models import Distance,VectorParams,PointStruct
 
 COLLECTION_NAME="abo_products"
 VECTOR_SIZE=512
+SEMANTIC_VECTOR_SIZE=768
 
 def get_client()->QdrantClient:
     return QdrantClient(url="http://localhost:6333")
@@ -14,7 +15,10 @@ def create_collection(client: QdrantClient, recreate: bool=False):
     if not client.collection_exists(COLLECTION_NAME):
         client.create_collection(
             collection_name=COLLECTION_NAME,
-            vectors_config=VectorParams(size=VECTOR_SIZE, distance=Distance.COSINE),
+            vectors_config={
+               "clip" :VectorParams(size=VECTOR_SIZE, distance=Distance.COSINE), 
+                "semantic" :VectorParams(size=SEMANTIC_VECTOR_SIZE, distance=Distance.COSINE),
+            },
         )
 
 def make_point_id(item_id: str, modality: str, index: int) -> str:
@@ -23,10 +27,10 @@ def make_point_id(item_id: str, modality: str, index: int) -> str:
     key = f"{item_id}:{modality}:{index}"
     return str(uuid.uuid5(uuid.NAMESPACE_DNS, key))
 
-def build_text_point(product:dict,chunk_index:int,chunk_text:str,vector: list[float])->PointStruct:
+def build_text_point(product:dict,chunk_index:int,chunk_text:str,clip_vector:list[float],semantic_vector:list[float])->PointStruct:
     return PointStruct(
         id=make_point_id(product["item_id"],"text",chunk_index),
-        vector=vector,
+        vector={"clip":clip_vector,"semantic":semantic_vector},
         payload={
             "item_id": product["item_id"],
             "modality": "text",
@@ -42,15 +46,15 @@ def build_text_point(product:dict,chunk_index:int,chunk_text:str,vector: list[fl
 
     )
 
-def build_image_point(product:dict,image_role:str,index:int,image_url:str,vector:list[float])->PointStruct:
+def build_image_point(product:dict,image_role:str,index:int,image_url:str,clip_vector:list[float])->PointStruct:
     return PointStruct(
 
         id=make_point_id(product["item_id"],"image",index),
-        vector=vector,
+        vector={"clip":clip_vector},
          payload={
             "item_id": product["item_id"],
             "modality": "image",
-            "image_role": image_role,   # "main" or "other"
+            "image_role": image_role,  
             "image_url": image_url,
             "category": product.get("category_primary"),
             "product_type": product.get("product_type"),

@@ -5,6 +5,7 @@ from embeddings.chunker import chunk_for_clip
 from embeddings.text_embedder import embed_texts_batch
 from embeddings.image_embedder import embed_images_batch
 from vector_store.qdrant_store import get_client, create_collection, build_text_point, build_image_point, upsert_points
+from embeddings.semantic_embedder import embed_passages_batch
 
 DATA_PATH = Path(__file__).parent.parent / "data" / "products_clean.jsonl"
 PROGRESS_PATH = Path(__file__).parent.parent / "data" / "embed_progress.json"
@@ -38,9 +39,11 @@ def process_batch(client,products_batch):
         for i, chunk_text in enumerate(chunk_for_clip(p)):
             chunk_records.append((p,i,chunk_text))
     if chunk_records:
-        chunk_vectors=embed_texts_batch([r[2] for r in chunk_records])
-        for (p,i,chunk_text),vector in zip(chunk_records,chunk_vectors):
-            text_points.append(build_text_point(p,i,chunk_text,vector))
+        chunk_texts=[r[2] for r in chunk_records]
+        clip_vectors=embed_texts_batch(chunk_texts)
+        semantic_vectors=embed_passages_batch(chunk_texts)
+        for (p,i,chunk_text),clip_vec,semantic_vec in zip(chunk_records,clip_vectors,semantic_vectors):
+            text_points.append(build_text_point(p,i,chunk_text,clip_vec,semantic_vec))
     image_records=[]
     for p in products_batch:
         main_image_url=p.get("main_image_url")
@@ -67,7 +70,7 @@ def run_full_batch(resume: bool=False):
     start = load_progress() if resume else 0
     if not resume:
         clear_progress()
-    create_collection(client,recreate=(start==0))
+    create_collection(client,recreate=True)
     products=load_all_products()
     total_text_points=0
     total_image_points=0
