@@ -7,5 +7,37 @@ services:
     volumes:
       - qdrant_storage:/qdrant/storage
 
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: abo_user
+      POSTGRES_PASSWORD: abo_password
+      POSTGRES_DB: abo_rag
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_storage:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U abo_user -d abo_rag"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    image: sravyasri788/abo-rag
+    env_file:
+      - .env
+    environment:
+      QDRANT_URL: http://qdrant:6333
+      POSTGRES_URL: postgresql://abo_user:abo_password@postgres/abo_rag
+    ports:
+      - "8000:8000"
+    depends_on:
+      qdrant:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+
 volumes:
   qdrant_storage:
+  postgres_storage:

@@ -4,11 +4,19 @@ from pathlib import Path
 from rank_bm25 import BM25Okapi
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from embeddings.chunker import chunk_for_clip
+from nltk.stem import PorterStemmer
 
 DATA_PATH = Path(__file__).parent.parent / "data" / "products_clean.jsonl"
 
 _bm25 = None
 _records = None
+
+stemmer = PorterStemmer()
+
+def stem_text(text: str) -> list[str]:
+    return [stemmer.stem(w) for w in text.lower().split()]
+
+
 
 def build_index():
     global _bm25,_records
@@ -19,12 +27,12 @@ def build_index():
             for i,chunk_text in enumerate(chunk_for_clip(p)):
                 records.append({"item_id":p["item_id"],"chunk_index":i,"text":chunk_text,"image_url":p.get("main_image_url") or p.get("image_url")})
     _records=records
-    _bm25=BM25Okapi([r["text"].lower().split() for r in records])
+    _bm25=BM25Okapi([stem_text(r["text"]) for r in records])
 
 def bm25_search(query:str,top_k:int=10)->list[dict]:
     if _bm25 is None:
         build_index()
-    scores=_bm25.get_scores(query.lower().split())
+    scores=_bm25.get_scores(stem_text(query))
     ranked_index=sorted(range(len(scores)),key=lambda i:scores[i],reverse=True)
     seen_items={}
     for idx in ranked_index:

@@ -20,7 +20,7 @@ def semantic_search(query:str,top_k:int=10):
                 "item_id":item_id,
                 "score":p.score,
                 "image_url":p.payload.get("main_image_url") or p.payload.get("image_url"),
-                "matched_via":"semantic"
+                "matched_via":"semantic",
             }
             
         if len(seen_items)>=top_k:
