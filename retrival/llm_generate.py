@@ -1,18 +1,35 @@
 from groq import Groq
 from dotenv import load_dotenv
+from retrival.dense_search import fetch_full_text_dimensions
 load_dotenv()
 
 client=Groq()
 
-def generate_answer(question: str, retrieved: list) -> dict:
-    context = "\n\n".join(
-        f"[Product {r.item_id if hasattr(r, 'item_id') else r['item_id']}]: "
-        f"{r.full_text if hasattr(r, 'full_text') else r.get('full_text', r.get('text', ''))}"
-        for r in retrieved
-    )
+def generate_answer(question: str, retrieved: list, history: list[dict]) -> dict:
+    context_parts = []
+    for r in retrieved:
+        item_id = r["item_id"]
+        full_text, dims = fetch_full_text_dimensions(item_id)
 
-    prompt = f"""Answer the question using ONLY the product information below.
-If a product is not actually relevant to the question, do not mention it and do not include it as used.
+        dims_str = ""
+        if any(dims.values()):
+            dims_str = (f"\nDimensions: {dims.get('height_in', '?')}in H x "
+                        f"{dims.get('width_in', '?')}in W x {dims.get('length_in', '?')}in L, "
+                        f"Weight: {dims.get('weight_lb', '?')} lb")
+
+        context_parts.append(f"[Product {item_id}]: {full_text}{dims_str}")
+
+    context = "\n\n".join(context_parts)   
+
+    history_text = ""
+    if history:
+        turns = "\n\n".join(f"Q: {h['question']}\nA: {h['answer']}" for h in history)
+        history_text = f"Previous conversation in this session:\n{turns}\n\n"
+
+    prompt = f"""{history_text}Answer the question using ONLY the product information below.
+Do not add general knowledge and dont assume any information or do not generalise any info which is not explicitly present in the product data shown here.
+If the products don't contain enough information to answer, say so honestly
+rather than filling the gap with outside knowledge.
 
 {context}
 Question: {question}
@@ -26,18 +43,41 @@ USED_ITEM_IDS: <comma-separated item_ids you actually used in the answer, or NON
         messages=[{"role": "user", "content": prompt}],
     )
     raw = response.choices[0].message.content
-
     answer_text, used_ids = _parse_response(raw)
 
-    lookup = {(r.item_id if hasattr(r, "item_id") else r["item_id"]): r for r in retrieved}
+    lookup = {r["item_id"]: r for r in retrieved}
     citations = []
     for item_id in used_ids:
         r = lookup.get(item_id)
         if r:
-            image_url = r.image_url if hasattr(r, "image_url") else r.get("image_url")
-            citations.append({"item_id": item_id, "image_url": image_url})
+            citations.append({"item_id": item_id, "image_url": r.get("image_url")})
 
     return {"answer": answer_text, "citations": citations}
+
+def contextualize_query(current_question: str, history: list[dict]) -> str:
+    history_text = "\n".join(f"Q: {h['question']}\nA: {h['answer'][:150]}" for h in history)
+    prompt = f"""Given this conversation history:
+{history_text}
+
+Rewrite this question into a short, catalog-style search
+phrase 
+
+Rules:
+- Resolve pronouns  using history above, if present.
+- Strip conversational filler words and phrases.
+- Keep brand names and technical terms exactly as given.
+- Correct obvious spelling mistakes only if confident.
+- If already a short catalog-style phrase, return unchanged.
+
+Follow-up: {current_question}"""
+
+    response = client.chat.completions.create(
+        model="openai/gpt-oss-120b",
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return response.choices[0].message.content.strip()
+
+
 
 
 def _parse_response(raw: str) -> tuple[str, list[str]]:

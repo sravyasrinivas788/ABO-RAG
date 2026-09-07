@@ -80,3 +80,37 @@ def fetch_full_text(item_id:str,client=None)->str:
     )
     chunks_sorted=sorted(chunk_results, key=lambda p: p.payload.get("chunk_index",0))
     return " ".join(p.payload.get("text","") for p in chunks_sorted)
+
+def fetch_full_text_dimensions(item_id:str,client=None)->tuple[str,dict]:
+    if client is None:
+        client=get_client()
+    chunk_results,_=client.scroll(
+        collection_name=COLLECTION_NAME,
+        scroll_filter=Filter(
+            must=[
+                FieldCondition(
+                    key="item_id",
+                    match=MatchValue(value=item_id)
+                ),
+                FieldCondition(
+                    key="modality",
+                    match=MatchValue(value="text")
+                )
+            ]
+        ),
+        limit=20
+    )
+    if not chunk_results:
+        return "", {}
+
+    chunks_sorted = sorted(chunk_results, key=lambda c: c.payload["chunk_index"])
+    full_text = " | ".join(c.payload["text"] for c in chunks_sorted)
+
+    first_payload = chunks_sorted[0].payload
+    dims = {
+        "height_in": first_payload.get("height_in"),
+        "width_in": first_payload.get("width_in"),
+        "length_in": first_payload.get("length_in"),
+        "weight_lb": first_payload.get("weight_lb"),
+    }
+    return full_text, dims

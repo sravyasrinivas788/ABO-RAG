@@ -7,21 +7,25 @@ from PIL import Image
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from retrival.dense_search import embed_text_query,embed_image_query,dense_search,combine_query_vectors
-from retrival.llm_generate import generate_answer
+from retrival.llm_generate import generate_answer,contextualize_query
 from retrival.hybrid_search import hybrid_search_from_vector,hybrid_search
+from history.session_store import get_conversation_history,save_conversation
 
 router = APIRouter()
 
 @router.post("/ask")
-async def ask_question(question:str=Form(None),image: UploadFile=None):
+async def ask_question(question:str=Form(None),image: UploadFile=None,session_id:str=Form(...)):
     if not question and not image:
         return {"error": "Please provide either a question or an image."}
+    history = get_conversation_history(session_id)
+    standardized_question = contextualize_query(question, history) if question else question
+
     if question and image is not None:
         search_path="text+image"
         image_bytes=await image.read()
         image_pil=Image.open(io.BytesIO(image_bytes)).convert("RGB")
-        query_vector=combine_query_vectors(embed_text_query(question),embed_image_query(image_pil))
-        retrived=hybrid_search_from_vector(query_vector,query_text=question,top_k=5)
+        query_vector=combine_query_vectors(embed_text_query(standardized_question),embed_image_query(image_pil))
+        retrived=hybrid_search_from_vector(query_vector,query_text=standardized_question,top_k=5)
     elif image is not None:
         search_path="image"
         image_pil=Image.open(io.BytesIO(await image.read())).convert("RGB")
@@ -29,12 +33,16 @@ async def ask_question(question:str=Form(None),image: UploadFile=None):
         retrived=hybrid_search_from_vector(query_vector,query_text=None,top_k=5)
     else:
         search_path="text"
-        retrived=hybrid_search(question,top_k=5)
+        retrived=hybrid_search(standardized_question,top_k=5)
 
     default_question = "The user uploaded an image and the products below were retrieved as visually similar matches. Describe these matching products."
-    result= generate_answer(question or default_question,retrived)
+    result= generate_answer(question or default_question,retrived,history)
+    save_conversation(session_id,question or default_question,result["answer"])
     result["debug"] = {
         "search_path": search_path,
+        "original_question": question,
+        "standardized_question": standardized_question,
+        "history_used":[h["question"] for h in history],
         "retrieved_chunks": [
             {
                 "item_id": r["item_id"],

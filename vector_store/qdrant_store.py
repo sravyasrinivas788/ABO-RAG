@@ -1,3 +1,4 @@
+import os
 import uuid
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance,VectorParams,PointStruct
@@ -5,9 +6,10 @@ from qdrant_client.models import Distance,VectorParams,PointStruct
 COLLECTION_NAME="abo_products"
 VECTOR_SIZE=512
 SEMANTIC_VECTOR_SIZE=768
+QDRANT_URL=os.getenv("QDRANT_URL","http://localhost:6333")
 
 def get_client()->QdrantClient:
-    return QdrantClient(url="http://localhost:6333")
+    return QdrantClient(url=QDRANT_URL)
 
 def create_collection(client: QdrantClient, recreate: bool=False):
     if recreate and client.collection_exists(COLLECTION_NAME):
@@ -40,6 +42,10 @@ def build_text_point(product:dict,chunk_index:int,chunk_text:str,clip_vector:lis
             "product_type": product.get("product_type"),
             "brand": product.get("brand"),
             "main_image_url": product.get("main_image_url"),
+            "height_in": product.get("height_in"),      
+            "width_in": product.get("width_in"),          
+            "length_in": product.get("length_in"),         
+            "weight_lb": product.get("weight_lb"), 
 
         },
 
