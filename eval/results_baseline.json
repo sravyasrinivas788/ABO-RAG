@@ -1,0 +1,13 @@
+{
+  "config": "baseline",
+  "item_level": {
+    "n": 138,
+    "recall@5": 0.8260869565217391,
+    "hit@1": 0.6014492753623188,
+    "mrr": 0.6891304347826087
+  },
+  "category_level": {
+    "n": 18,
+    "category_precision@5": 0.588888888888889
+  }
+}
