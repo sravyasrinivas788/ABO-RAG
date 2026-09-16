@@ -140,4 +140,67 @@ Response shape:
     "retrieved_chunks": [ { "item_id": "...", "matched_via": "...", "score": 0.0, "text_preview": "..." } ]
   }
 }
-``` 
+```
+
+## Retrieval evaluation
+
+`eval/` holds a retrieval-only test harness -- it exercises `hybrid_search()`
+directly (no LLM generation involved) against a golden set built from the
+catalog itself, so ground truth is known by construction. Run everything
+from the project root, with Qdrant populated (see "Running everything with
+Docker" above) and `GROQ_API_KEY` set.
+
+### 1. Build the golden set
+
+```
+python -m eval.build_golden_set
+```
+
+Samples up to 8 products per `product_type` (capped to the 30 most frequent
+categories) and, for each, generates:
+
+- an item-level natural-language query with one distinguishing detail
+  (e.g. `"blue phone case with butterfly design"`), written to
+  `eval/retrieval_golden.jsonl` with the source `item_id` as ground truth
+- one vague, category-level browsing query per category (e.g.
+  `"pillow options"`), written to `eval/retrieval_golden_vague.jsonl` --
+  these have no single correct item, so they're scored differently (see below)
+
+Review `retrieval_golden.jsonl` afterwards and discard/fix any query that
+isn't uniquely answered by its `item_id`.
+
+### 2. Run the eval
+
+```
+python -m eval.run_retrieval_eval baseline
+```
+
+Reports two sets of metrics and saves them to `eval/results_<tag>.json`:
+
+- **Item-level** (`retrieval_golden.jsonl`): `recall@5` (did the correct
+  item appear anywhere in the top 5), `hit@1` (was it ranked first), `mrr`
+  (mean reciprocal rank -- rewards ranking it higher, not just finding it)
+- **Category-level** (`retrieval_golden_vague.jsonl`): `category_precision@5`
+  (of the 5 results returned for a vague query, what fraction were the
+  right `product_type`)
+
+Pass a different tag for each variant you want to compare (a prompt
+change, a different rerank model, a different Groq model) -- each run
+writes its own `results_<tag>.json` so runs can be diffed side by side:
+
+```
+python -m eval.run_retrieval_eval some_variant
+```
+
+### 3. Investigate failures by language
+
+```
+python -m eval.analyze_language_failures
+```
+
+Splits the item-level golden set into products whose embedded chunk text
+(`name + brand + color + material + bullet_points`, see
+`embeddings/chunker.py`) is fully English vs. products with non-English
+`bullet_points`, and reports the miss rate for each group plus sample
+failing queries -- useful for checking whether retrieval quality is weaker
+on the ~24% of the catalog with non-English listing data.
